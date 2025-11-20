@@ -7,7 +7,6 @@ import { Button } from '@/components/ui/button';
 import { PaperCard } from '@/components/PaperCard';
 import { LibraryTable } from '@/components/LibraryTable';
 import { searchPapersAction, getLatestPapersAction, savePaperAction, getSavedPapersAction, suggestTopicsAction, addTopicToPaperAction, deletePaperAction, regenerateSummaryAction, removeTopicFromPaperAction, regenerateAllSummariesAction, regenerateEmptySummariesAction } from '@/app/actions';
-import { groupPapers, Cluster } from '@/lib/clustering';
 import { Loader2, Search, Layers, Sparkles, Library, Plus, Tag, Trash2 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ArxivPaper } from '@/lib/arxiv';
@@ -22,7 +21,6 @@ export default function Dashboard() {
     const router = useRouter();
     const [query, setQuery] = useState('');
     const [papers, setPapers] = useState<ArxivPaper[]>([]);
-    const [clusters, setClusters] = useState<Cluster[]>([]);
     const [recommendations, setRecommendations] = useState<ArxivPaper[]>([]);
     const [savedPapers, setSavedPapers] = useState<SavedPaper[]>([]);
     const [loading, setLoading] = useState(false);
@@ -72,7 +70,6 @@ export default function Dashboard() {
         try {
             const results = await searchPapersAction(query, 0, sortBy);
             setPapers(results);
-            setClusters(groupPapers(results));
             if (results.length < 10) setHasMore(false);
         } catch (error) {
             console.error('Search failed:', error);
@@ -100,7 +97,6 @@ export default function Dashboard() {
                 try {
                     const results = await searchPapersAction(query, 0, newSort);
                     setPapers(results);
-                    setClusters(groupPapers(results));
                     if (results.length < 10) setHasMore(false);
                 } catch (error) {
                     console.error('Search failed:', error);
@@ -354,37 +350,71 @@ export default function Dashboard() {
                 </TabsContent>
 
                 <TabsContent value="clusters">
-                    {clusters.length > 0 ? (
+                    {savedPapers.length > 0 ? (
                         <div className="space-y-8">
-                            {clusters.map((cluster) => (
-                                <div key={cluster.id} className="border rounded-xl p-6 bg-gray-50 dark:bg-gray-900/50">
-                                    <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
-                                        <Layers size={20} className="text-blue-500" />
-                                        {cluster.name}
-                                        <span className="text-sm font-normal text-gray-500">({cluster.papers.length} papers)</span>
-                                    </h3>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        {cluster.papers.map((paper) => (
-                                            <PaperCard
-                                                key={paper.id}
-                                                paper={paper}
-                                                paperId={paper.id}
-                                                onClick={() => router.push(`/paper/${encodeURIComponent(paper.id)}`)}
-                                                onSave={(e) => {
-                                                    e.stopPropagation();
-                                                    handleSave(paper);
-                                                }}
-                                                isSaved={savedPapers.some(p => p.id === paper.id)}
-                                                isSaving={savingId === paper.id}
-                                            />
-                                        ))}
-                                    </div>
-                                </div>
-                            ))}
+                            {(() => {
+                                // Group papers by topics
+                                const topicGroups = new Map<string, SavedPaper[]>();
+
+                                savedPapers.forEach(paper => {
+                                    if (paper.topics && paper.topics.length > 0) {
+                                        paper.topics.forEach(topic => {
+                                            if (!topicGroups.has(topic.name)) {
+                                                topicGroups.set(topic.name, []);
+                                            }
+                                            topicGroups.get(topic.name)!.push(paper);
+                                        });
+                                    } else {
+                                        // Papers without topics go to "Uncategorized"
+                                        if (!topicGroups.has('Uncategorized')) {
+                                            topicGroups.set('Uncategorized', []);
+                                        }
+                                        topicGroups.get('Uncategorized')!.push(paper);
+                                    }
+                                });
+
+                                // Sort topics alphabetically, but put "Uncategorized" last
+                                const sortedTopics = Array.from(topicGroups.keys()).sort((a, b) => {
+                                    if (a === 'Uncategorized') return 1;
+                                    if (b === 'Uncategorized') return -1;
+                                    return a.localeCompare(b);
+                                });
+
+                                return sortedTopics.map(topicName => {
+                                    const papers = topicGroups.get(topicName)!;
+                                    return (
+                                        <div key={topicName} className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
+                                            <div className="flex items-center gap-3 mb-4">
+                                                <Tag className="text-blue-500" size={20} />
+                                                <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
+                                                    {topicName}
+                                                </h3>
+                                                <Badge variant="secondary" className="ml-2">
+                                                    {papers.length} {papers.length === 1 ? 'paper' : 'papers'}
+                                                </Badge>
+                                            </div>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                                {papers.map(paper => (
+                                                    <PaperCard
+                                                        key={`${topicName}-${paper.id}`}
+                                                        paper={paper}
+                                                        paperId={paper.id}
+                                                        onClick={() => router.push(`/paper/${paper.id}`)}
+                                                        onSave={() => handleSave(paper)}
+                                                        isSaved={savedPapers.some(p => p.id === paper.id)}
+                                                        isSaving={savingId === paper.id}
+                                                    />
+                                                ))}
+                                            </div>
+                                        </div>
+                                    );
+                                });
+                            })()}
                         </div>
                     ) : (
                         <div className="text-center text-gray-500 mt-12">
-                            <p>Search for papers first to see them grouped into clusters.</p>
+                            <Layers className="mx-auto h-12 w-12 text-gray-300 mb-4" />
+                            <p>No papers in your library yet. Add papers to see them grouped by topics.</p>
                         </div>
                     )}
                 </TabsContent>
