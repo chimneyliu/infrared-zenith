@@ -20,7 +20,7 @@ export async function analyzePdfBuffer(buffer: Buffer): Promise<{ summary: strin
     }
 
     try {
-        const model = getGenAI().getGenerativeModel({ model: "gemini-pro-latest" });
+        const model = getGenAI().getGenerativeModel({ model: "gemini-flash-latest" });
 
         // Convert Buffer to base64 string
         const base64Data = buffer.toString('base64');
@@ -79,7 +79,7 @@ export async function summarizeText(text: string): Promise<string> {
     }
 
     try {
-        const model = getGenAI().getGenerativeModel({ model: "gemini-pro-latest" });
+        const model = getGenAI().getGenerativeModel({ model: "gemini-flash-latest" });
         // Truncate text to avoid token limits (approx 30k chars is safe for Flash)
         const truncatedText = text.substring(0, 30000);
 
