@@ -19,6 +19,9 @@ interface LibraryTableProps {
     regeneratingId: string | null;
     onAddTopic: (id: string, topic: string) => void;
     onRemoveTopic: (paperId: string, topicId: string) => void;
+    onRegenerateAll?: () => void;
+    onRegenerateEmpty?: () => void;
+    bulkRegenerating?: boolean;
 }
 
 type SortConfig = {
@@ -26,7 +29,17 @@ type SortConfig = {
     direction: 'asc' | 'desc';
 } | null;
 
-export function LibraryTable({ papers, onRemove, onRegenerateSummary, regeneratingId, onAddTopic, onRemoveTopic }: LibraryTableProps) {
+export function LibraryTable({
+    papers,
+    onRemove,
+    onRegenerateSummary,
+    regeneratingId,
+    onAddTopic,
+    onRemoveTopic,
+    onRegenerateAll,
+    onRegenerateEmpty,
+    bulkRegenerating = false
+}: LibraryTableProps) {
     const [filter, setFilter] = useState('');
     const [sortConfig, setSortConfig] = useState<SortConfig>(null);
     const [editingTopicId, setEditingTopicId] = useState<string | null>(null);
@@ -113,6 +126,48 @@ export function LibraryTable({ papers, onRemove, onRegenerateSummary, regenerati
                         onChange={(e) => setFilter(e.target.value)}
                         className="max-w-sm"
                     />
+                    <div className="flex gap-2 ml-auto">
+                        {onRegenerateEmpty && (
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={onRegenerateEmpty}
+                                disabled={bulkRegenerating}
+                            >
+                                {bulkRegenerating ? (
+                                    <>
+                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                        Regenerating...
+                                    </>
+                                ) : (
+                                    <>
+                                        <RefreshCw className="mr-2 h-4 w-4" />
+                                        Regenerate Empty
+                                    </>
+                                )}
+                            </Button>
+                        )}
+                        {onRegenerateAll && (
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={onRegenerateAll}
+                                disabled={bulkRegenerating}
+                            >
+                                {bulkRegenerating ? (
+                                    <>
+                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                        Regenerating...
+                                    </>
+                                ) : (
+                                    <>
+                                        <RefreshCw className="mr-2 h-4 w-4" />
+                                        Regenerate All
+                                    </>
+                                )}
+                            </Button>
+                        )}
+                    </div>
                 </div>
 
                 <div className="rounded-md border">

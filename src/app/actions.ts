@@ -350,3 +350,75 @@ export async function deletePaperAction(paperId: string): Promise<void> {
         },
     });
 }
+
+export async function regenerateAllSummariesAction(): Promise<{ success: boolean; count: number; errors: number }> {
+    try {
+        const user = await getCurrentUser();
+
+        // Fetch all saved papers for the current user
+        const savedPapers = await prisma.savedPaper.findMany({
+            where: { userId: user.id },
+            include: { paper: true },
+        });
+
+        let successCount = 0;
+        let errorCount = 0;
+
+        // Process each paper sequentially to avoid overwhelming the API
+        for (const savedPaper of savedPapers) {
+            const result = await regenerateSummaryAction(savedPaper.paper.id);
+            if (result.success) {
+                successCount++;
+            } else {
+                errorCount++;
+                console.error(`Failed to regenerate summary for paper ${savedPaper.paper.id}:`, result.error);
+            }
+        }
+
+        return { success: true, count: successCount, errors: errorCount };
+    } catch (error) {
+        console.error('Error in bulk regeneration:', error);
+        return { success: false, count: 0, errors: 0 };
+    }
+}
+
+export async function regenerateEmptySummariesAction(): Promise<{ success: boolean; count: number; errors: number }> {
+    try {
+        const user = await getCurrentUser();
+
+        // Fetch all saved papers for the current user
+        const savedPapers = await prisma.savedPaper.findMany({
+            where: { userId: user.id },
+            include: { paper: true },
+        });
+
+        // Filter papers with empty or invalid summaries
+        const papersToRegenerate = savedPapers.filter(savedPaper => {
+            const summary = savedPaper.paper.summary;
+            return !summary ||
+                summary.trim() === '' ||
+                summary.startsWith('Error') ||
+                summary.startsWith('Failed');
+        });
+
+        let successCount = 0;
+        let errorCount = 0;
+
+        // Process each paper sequentially to avoid overwhelming the API
+        for (const savedPaper of papersToRegenerate) {
+            const result = await regenerateSummaryAction(savedPaper.paper.id);
+            if (result.success) {
+                successCount++;
+            } else {
+                errorCount++;
+                console.error(`Failed to regenerate summary for paper ${savedPaper.paper.id}:`, result.error);
+            }
+        }
+
+        return { success: true, count: successCount, errors: errorCount };
+    } catch (error) {
+        console.error('Error in bulk regeneration:', error);
+        return { success: false, count: 0, errors: 0 };
+    }
+}
+

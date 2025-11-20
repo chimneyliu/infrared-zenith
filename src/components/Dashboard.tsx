@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { PaperCard } from '@/components/PaperCard';
 import { LibraryTable } from '@/components/LibraryTable';
-import { searchPapersAction, getLatestPapersAction, savePaperAction, getSavedPapersAction, suggestTopicsAction, addTopicToPaperAction, deletePaperAction, regenerateSummaryAction, removeTopicFromPaperAction } from '@/app/actions';
+import { searchPapersAction, getLatestPapersAction, savePaperAction, getSavedPapersAction, suggestTopicsAction, addTopicToPaperAction, deletePaperAction, regenerateSummaryAction, removeTopicFromPaperAction, regenerateAllSummariesAction, regenerateEmptySummariesAction } from '@/app/actions';
 import { groupPapers, Cluster } from '@/lib/clustering';
 import { Loader2, Search, Layers, Sparkles, Library, Plus, Tag, Trash2 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -33,6 +33,7 @@ export default function Dashboard() {
     const [taggingId, setTaggingId] = useState<string | null>(null);
     const [savingId, setSavingId] = useState<string | null>(null);
     const [regeneratingId, setRegeneratingId] = useState<string | null>(null);
+    const [bulkRegenerating, setBulkRegenerating] = useState(false);
 
     const fetchSaved = async () => {
         try {
@@ -189,6 +190,44 @@ export default function Dashboard() {
         }
     };
 
+    const handleRegenerateAll = async () => {
+        if (!confirm('This will regenerate summaries for ALL papers in your library. This may take a while. Continue?')) return;
+        setBulkRegenerating(true);
+        try {
+            const result = await regenerateAllSummariesAction();
+            if (result.success) {
+                await fetchSaved();
+                alert(`Successfully regenerated ${result.count} summaries${result.errors > 0 ? ` (${result.errors} failed)` : ''}`);
+            } else {
+                alert('Bulk regeneration failed');
+            }
+        } catch (error) {
+            console.error('Bulk regeneration failed:', error);
+            alert('Bulk regeneration failed');
+        } finally {
+            setBulkRegenerating(false);
+        }
+    };
+
+    const handleRegenerateEmpty = async () => {
+        if (!confirm('This will regenerate summaries for papers without valid summaries. Continue?')) return;
+        setBulkRegenerating(true);
+        try {
+            const result = await regenerateEmptySummariesAction();
+            if (result.success) {
+                await fetchSaved();
+                alert(`Successfully regenerated ${result.count} summaries${result.errors > 0 ? ` (${result.errors} failed)` : ''}`);
+            } else {
+                alert('Bulk regeneration failed');
+            }
+        } catch (error) {
+            console.error('Bulk regeneration failed:', error);
+            alert('Bulk regeneration failed');
+        } finally {
+            setBulkRegenerating(false);
+        }
+    };
+
     const handleAddTopic = async (paperId: string, topic: string) => {
         try {
             await addTopicToPaperAction(paperId, topic);
@@ -302,6 +341,9 @@ export default function Dashboard() {
                             regeneratingId={regeneratingId}
                             onAddTopic={handleAddTopic}
                             onRemoveTopic={handleRemoveTopic}
+                            onRegenerateAll={handleRegenerateAll}
+                            onRegenerateEmpty={handleRegenerateEmpty}
+                            bulkRegenerating={bulkRegenerating}
                         />
                     ) : (
                         <div className="text-center text-gray-500 mt-12">
