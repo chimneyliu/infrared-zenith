@@ -1,0 +1,77 @@
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  name      String?
+  library   SavedPaper[]
+}
+
+model SavedPaper {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  paperId   String
+  paper     Paper    @relation(fields: [paperId], references: [id])
+  savedAt   DateTime @default(now())
+
+  @@unique([userId, paperId])
+}
+
+model Paper {
+  id            String   @id @default(uuid())
+  title         String
+  authors       String   // Stored as JSON string
+  abstract      String?
+  summary       String?
+  institution   String?  // Extracted company/institution
+  url           String?  // ArXiv URL
+  filePath      String?  // Local PDF path
+  publishedDate DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  clusterId     String?
+  cluster       Cluster? @relation(fields: [clusterId], references: [id])
+
+  topics        Topic[] @relation("PaperTopics")
+
+  references    Reference[] @relation("PaperReferences")
+  referencedBy  Reference[] @relation("ReferencedBy")
+  
+  savedBy       SavedPaper[]
+}
+
+model Topic {
+  id     String  @id @default(uuid())
+  name   String  @unique
+  papers Paper[] @relation("PaperTopics")
+}
+
+model Reference {
+  id        String  @id @default(uuid())
+  title     String
+  url       String?
+
+  sourcePaperId String
+  sourcePaper   Paper @relation("PaperReferences", fields: [sourcePaperId], references: [id])
+
+  targetPaperId String?
+  targetPaper   Paper? @relation("ReferencedBy", fields: [targetPaperId], references: [id])
+}
+
+model Cluster {
+  id          String @id @default(uuid())
+  name        String
+  description String?
+  papers      Paper[]
+}
+
