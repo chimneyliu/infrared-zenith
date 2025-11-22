@@ -22,6 +22,8 @@ model SavedPaper {
   paperId   String
   paper     Paper    @relation(fields: [paperId], references: [id])
   savedAt   DateTime @default(now())
+  isRead    Boolean  @default(false)
+  isStarred Boolean  @default(false)
 
   @@unique([userId, paperId])
 }

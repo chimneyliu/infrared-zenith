@@ -291,6 +291,8 @@ export async function getSavedPapersAction() {
             link: p.url || '',
             pdfLink: p.filePath || '',
             institution: p.institution,
+            isRead: entry.isRead,
+            isStarred: entry.isStarred,
         };
     });
 }
@@ -420,5 +422,61 @@ export async function regenerateEmptySummariesAction(): Promise<{ success: boole
         console.error('Error in bulk regeneration:', error);
         return { success: false, count: 0, errors: 0 };
     }
+}
+
+export async function toggleReadStatusAction(paperId: string): Promise<boolean> {
+    const user = await getCurrentUser();
+    const savedPaper = await prisma.savedPaper.findUnique({
+        where: {
+            userId_paperId: {
+                userId: user.id,
+                paperId: paperId,
+            },
+        },
+    });
+
+    if (!savedPaper) return false;
+
+    const updated = await prisma.savedPaper.update({
+        where: {
+            userId_paperId: {
+                userId: user.id,
+                paperId: paperId,
+            },
+        },
+        data: {
+            isRead: !savedPaper.isRead,
+        },
+    });
+
+    return updated.isRead;
+}
+
+export async function toggleStarStatusAction(paperId: string): Promise<boolean> {
+    const user = await getCurrentUser();
+    const savedPaper = await prisma.savedPaper.findUnique({
+        where: {
+            userId_paperId: {
+                userId: user.id,
+                paperId: paperId,
+            },
+        },
+    });
+
+    if (!savedPaper) return false;
+
+    const updated = await prisma.savedPaper.update({
+        where: {
+            userId_paperId: {
+                userId: user.id,
+                paperId: paperId,
+            },
+        },
+        data: {
+            isStarred: !savedPaper.isStarred,
+        },
+    });
+
+    return updated.isStarred;
 }
 

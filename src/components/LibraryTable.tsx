@@ -4,12 +4,15 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { ArrowUpDown, Trash2, ExternalLink, FileText, RefreshCw, Loader2, Plus, Check, X } from "lucide-react";
+import { ArrowUpDown, Trash2, ExternalLink, FileText, RefreshCw, Loader2, Plus, Check, X, Star, Eye, EyeOff } from "lucide-react";
 import { ArxivPaper } from '@/lib/arxiv';
+import { MultiSelectFilter, DateRangeFilter } from './FilterComponents';
 
 interface SavedPaper extends ArxivPaper {
     topics?: { id: string; name: string }[];
     institution?: string | null;
+    isRead?: boolean;
+    isStarred?: boolean;
 }
 
 interface LibraryTableProps {
@@ -22,6 +25,8 @@ interface LibraryTableProps {
     onRegenerateAll?: () => void;
     onRegenerateEmpty?: () => void;
     bulkRegenerating?: boolean;
+    onToggleRead?: (id: string) => void;
+    onToggleStar?: (id: string) => void;
 }
 
 type SortConfig = {
@@ -38,12 +43,42 @@ export function LibraryTable({
     onRemoveTopic,
     onRegenerateAll,
     onRegenerateEmpty,
-    bulkRegenerating = false
+    bulkRegenerating = false,
+    onToggleRead,
+    onToggleStar
 }: LibraryTableProps) {
-    const [filter, setFilter] = useState('');
+    const [filters, setFilters] = useState({
+        starred: 'all' as 'all' | 'starred' | 'unstarred',
+        title: '',
+        authors: '',
+        institutions: [] as string[],
+        publishedStart: '',
+        publishedEnd: '',
+        read: 'all' as 'all' | 'read' | 'unread',
+        labels: [] as string[],
+        abstract: ''
+    });
+
     const [sortConfig, setSortConfig] = useState<SortConfig>(null);
     const [editingTopicId, setEditingTopicId] = useState<string | null>(null);
     const [newTopic, setNewTopic] = useState('');
+
+    // Extract unique options for multi-selects
+    const uniqueInstitutions = useMemo(() => {
+        const institutions = new Set<string>();
+        papers.forEach(p => {
+            if (p.institution) institutions.add(p.institution);
+        });
+        return Array.from(institutions).sort();
+    }, [papers]);
+
+    const uniqueLabels = useMemo(() => {
+        const labels = new Set<string>();
+        papers.forEach(p => {
+            p.topics?.forEach(t => labels.add(t.name));
+        });
+        return Array.from(labels).sort();
+    }, [papers]);
 
     const handleStartAddTopic = (paperId: string) => {
         setEditingTopicId(paperId);
@@ -76,15 +111,33 @@ export function LibraryTable({
     const filteredAndSortedPapers = useMemo(() => {
         let result = [...papers];
 
-        // Filter
-        if (filter) {
-            const lowerFilter = filter.toLowerCase();
-            result = result.filter(paper =>
-                paper.title.toLowerCase().includes(lowerFilter) ||
-                paper.authors.some(a => a.toLowerCase().includes(lowerFilter)) ||
-                (paper.institution && paper.institution.toLowerCase().includes(lowerFilter)) ||
-                (paper.summary && paper.summary.toLowerCase().includes(lowerFilter))
-            );
+        // Apply Filters
+        if (filters.starred !== 'all') {
+            result = result.filter(p => filters.starred === 'starred' ? p.isStarred : !p.isStarred);
+        }
+        if (filters.title) {
+            result = result.filter(p => p.title.toLowerCase().includes(filters.title.toLowerCase()));
+        }
+        if (filters.authors) {
+            result = result.filter(p => p.authors.some(a => a.toLowerCase().includes(filters.authors.toLowerCase())));
+        }
+        if (filters.institutions.length > 0) {
+            result = result.filter(p => p.institution && filters.institutions.includes(p.institution));
+        }
+        if (filters.publishedStart) {
+            result = result.filter(p => new Date(p.published) >= new Date(filters.publishedStart));
+        }
+        if (filters.publishedEnd) {
+            result = result.filter(p => new Date(p.published) <= new Date(filters.publishedEnd));
+        }
+        if (filters.read !== 'all') {
+            result = result.filter(p => filters.read === 'read' ? p.isRead : !p.isRead);
+        }
+        if (filters.labels.length > 0) {
+            result = result.filter(p => p.topics?.some(t => filters.labels.includes(t.name)));
+        }
+        if (filters.abstract) {
+            result = result.filter(p => p.summary?.toLowerCase().includes(filters.abstract.toLowerCase()));
         }
 
         // Sort
@@ -114,18 +167,12 @@ export function LibraryTable({
         }
 
         return result;
-    }, [papers, filter, sortConfig]);
+    }, [papers, filters, sortConfig]);
 
     return (
         <TooltipProvider>
             <div className="space-y-4">
                 <div className="flex items-center gap-4">
-                    <Input
-                        placeholder="Filter by title, author, institution, or abstract..."
-                        value={filter}
-                        onChange={(e) => setFilter(e.target.value)}
-                        className="max-w-sm"
-                    />
                     <div className="flex gap-2 ml-auto">
                         {onRegenerateEmpty && (
                             <Button
@@ -174,7 +221,8 @@ export function LibraryTable({
                     <Table>
                         <TableHeader>
                             <TableRow>
-                                <TableHead className="w-[250px]">
+                                <TableHead className="w-[50px]"></TableHead>
+                                <TableHead className="w-[200px]">
                                     <Button variant="ghost" onClick={() => handleSort('title')} className="h-8 text-left font-bold p-0 hover:bg-transparent">
                                         Title
                                         <ArrowUpDown className="ml-2 h-4 w-4" />
@@ -186,26 +234,111 @@ export function LibraryTable({
                                         <ArrowUpDown className="ml-2 h-4 w-4" />
                                     </Button>
                                 </TableHead>
-                                <TableHead className="w-[150px]">
+                                <TableHead className="w-[120px]">
                                     <Button variant="ghost" onClick={() => handleSort('institution')} className="h-8 text-left font-bold p-0 hover:bg-transparent">
                                         Institution
                                         <ArrowUpDown className="ml-2 h-4 w-4" />
                                     </Button>
                                 </TableHead>
-                                <TableHead className="w-[120px]">
+                                <TableHead className="w-[100px]">
                                     <Button variant="ghost" onClick={() => handleSort('published')} className="h-8 text-left font-bold p-0 hover:bg-transparent">
                                         Published
                                         <ArrowUpDown className="ml-2 h-4 w-4" />
                                     </Button>
                                 </TableHead>
-                                <TableHead className="w-[200px]">Labels</TableHead>
+                                <TableHead className="w-[80px]">Read</TableHead>
+                                <TableHead className="w-[150px]">Labels</TableHead>
                                 <TableHead className="min-w-[200px]">Abstract</TableHead>
-                                <TableHead className="w-[100px]">Actions</TableHead>
+                                <TableHead className="w-[80px]">Actions</TableHead>
+                            </TableRow>
+                            <TableRow className="bg-muted/50 hover:bg-muted/50">
+                                <TableHead className="p-2">
+                                    <select
+                                        className="h-7 w-full rounded-md border border-input bg-background px-1 text-xs ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                                        value={filters.starred}
+                                        onChange={(e) => setFilters(prev => ({ ...prev, starred: e.target.value as any }))}
+                                    >
+                                        <option value="all">All</option>
+                                        <option value="starred">★</option>
+                                        <option value="unstarred">☆</option>
+                                    </select>
+                                </TableHead>
+                                <TableHead className="p-2">
+                                    <Input
+                                        placeholder="Filter title..."
+                                        value={filters.title}
+                                        onChange={(e) => setFilters(prev => ({ ...prev, title: e.target.value }))}
+                                        className="h-7 text-xs"
+                                    />
+                                </TableHead>
+                                <TableHead className="p-2">
+                                    <Input
+                                        placeholder="Filter authors..."
+                                        value={filters.authors}
+                                        onChange={(e) => setFilters(prev => ({ ...prev, authors: e.target.value }))}
+                                        className="h-7 text-xs"
+                                    />
+                                </TableHead>
+                                <TableHead className="p-2">
+                                    <MultiSelectFilter
+                                        options={uniqueInstitutions}
+                                        selected={filters.institutions}
+                                        onChange={(selected) => setFilters(prev => ({ ...prev, institutions: selected }))}
+                                        placeholder="Inst..."
+                                        searchPlaceholder="Search inst..."
+                                    />
+                                </TableHead>
+                                <TableHead className="p-2">
+                                    <DateRangeFilter
+                                        start={filters.publishedStart}
+                                        end={filters.publishedEnd}
+                                        onChange={(start, end) => setFilters(prev => ({ ...prev, publishedStart: start, publishedEnd: end }))}
+                                    />
+                                </TableHead>
+                                <TableHead className="p-2">
+                                    <select
+                                        className="h-7 w-full rounded-md border border-input bg-background px-1 text-xs ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                                        value={filters.read}
+                                        onChange={(e) => setFilters(prev => ({ ...prev, read: e.target.value as any }))}
+                                    >
+                                        <option value="all">All</option>
+                                        <option value="read">Read</option>
+                                        <option value="unread">Unread</option>
+                                    </select>
+                                </TableHead>
+                                <TableHead className="p-2">
+                                    <MultiSelectFilter
+                                        options={uniqueLabels}
+                                        selected={filters.labels}
+                                        onChange={(selected) => setFilters(prev => ({ ...prev, labels: selected }))}
+                                        placeholder="Labels..."
+                                        searchPlaceholder="Search labels..."
+                                    />
+                                </TableHead>
+                                <TableHead className="p-2">
+                                    <Input
+                                        placeholder="Filter abstract..."
+                                        value={filters.abstract}
+                                        onChange={(e) => setFilters(prev => ({ ...prev, abstract: e.target.value }))}
+                                        className="h-7 text-xs"
+                                    />
+                                </TableHead>
+                                <TableHead className="p-2"></TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {filteredAndSortedPapers.map((paper) => (
                                 <TableRow key={paper.id}>
+                                    <TableCell>
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className={`h-8 w-8 ${paper.isStarred ? 'text-yellow-500 hover:text-yellow-600' : 'text-gray-300 hover:text-yellow-500'}`}
+                                            onClick={() => onToggleStar?.(paper.id)}
+                                        >
+                                            <Star size={16} fill={paper.isStarred ? "currentColor" : "none"} />
+                                        </Button>
+                                    </TableCell>
                                     <TableCell className="font-medium">
                                         <div className="space-y-1">
                                             <a href={`/paper/${encodeURIComponent(paper.id)}`} className="hover:underline text-blue-600 dark:text-blue-400 block line-clamp-2">
@@ -251,6 +384,17 @@ export function LibraryTable({
                                         <span className="text-sm whitespace-nowrap">
                                             {new Date(paper.published).toLocaleDateString()}
                                         </span>
+                                    </TableCell>
+                                    <TableCell>
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className={`h-8 w-8 ${paper.isRead ? 'text-green-500 hover:text-green-600' : 'text-gray-300 hover:text-green-500'}`}
+                                            onClick={() => onToggleRead?.(paper.id)}
+                                            title={paper.isRead ? "Mark as unread" : "Mark as read"}
+                                        >
+                                            {paper.isRead ? <Eye size={16} /> : <EyeOff size={16} />}
+                                        </Button>
                                     </TableCell>
                                     <TableCell>
                                         <div className="flex flex-wrap gap-1.5 items-center min-w-[200px]">
@@ -349,7 +493,7 @@ export function LibraryTable({
                             ))}
                             {filteredAndSortedPapers.length === 0 && (
                                 <TableRow>
-                                    <TableCell colSpan={7} className="text-center py-8 text-gray-500">
+                                    <TableCell colSpan={9} className="text-center py-8 text-gray-500">
                                         No papers found matching your filter.
                                     </TableCell>
                                 </TableRow>

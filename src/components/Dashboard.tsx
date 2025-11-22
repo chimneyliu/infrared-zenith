@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { PaperCard } from '@/components/PaperCard';
 import { LibraryTable } from '@/components/LibraryTable';
-import { searchPapersAction, getLatestPapersAction, savePaperAction, getSavedPapersAction, suggestTopicsAction, addTopicToPaperAction, deletePaperAction, regenerateSummaryAction, removeTopicFromPaperAction, regenerateAllSummariesAction, regenerateEmptySummariesAction } from '@/app/actions';
+import { searchPapersAction, getLatestPapersAction, savePaperAction, getSavedPapersAction, suggestTopicsAction, addTopicToPaperAction, deletePaperAction, regenerateSummaryAction, removeTopicFromPaperAction, regenerateAllSummariesAction, regenerateEmptySummariesAction, toggleReadStatusAction, toggleStarStatusAction } from '@/app/actions';
 import { Loader2, Search, Layers, Sparkles, Library, Plus, Tag, Trash2 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ArxivPaper } from '@/lib/arxiv';
@@ -15,6 +15,8 @@ import { UserButton } from "@clerk/nextjs";
 
 interface SavedPaper extends ArxivPaper {
     topics?: { id: string; name: string }[];
+    isRead?: boolean;
+    isStarred?: boolean;
 }
 
 export default function Dashboard() {
@@ -224,6 +226,34 @@ export default function Dashboard() {
         }
     };
 
+    const handleToggleRead = async (paperId: string) => {
+        // Optimistic update
+        setSavedPapers(current => current.map(p =>
+            p.id === paperId ? { ...p, isRead: !p.isRead } : p
+        ));
+        try {
+            await toggleReadStatusAction(paperId);
+        } catch (error) {
+            console.error('Failed to toggle read status:', error);
+            // Revert on error
+            await fetchSaved();
+        }
+    };
+
+    const handleToggleStar = async (paperId: string) => {
+        // Optimistic update
+        setSavedPapers(current => current.map(p =>
+            p.id === paperId ? { ...p, isStarred: !p.isStarred } : p
+        ));
+        try {
+            await toggleStarStatusAction(paperId);
+        } catch (error) {
+            console.error('Failed to toggle star status:', error);
+            // Revert on error
+            await fetchSaved();
+        }
+    };
+
     const handleAddTopic = async (paperId: string, topic: string) => {
         try {
             await addTopicToPaperAction(paperId, topic);
@@ -240,213 +270,220 @@ export default function Dashboard() {
             await fetchSaved();
         } catch (error) {
             console.error('Failed to remove topic:', error);
-            alert('Failed to remove topic');
         }
     };
 
     return (
-        <div className="container mx-auto p-6 max-w-7xl">
-            <header className="mb-8 flex flex-col items-center relative">
-                <div className="absolute right-0 top-0">
-                    <UserButton afterSignOutUrl="/" />
-                </div>
-                <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-2">Infrared Zenith</h1>
-                <p className="text-gray-600 dark:text-gray-400">Organize, Analyze, and Discover Research Papers</p>
-            </header>
-
-            <Tabs defaultValue="library" className="w-full">
-                <div className="flex justify-center mb-8">
-                    <TabsList>
-                        <TabsTrigger value="library" className="flex items-center gap-2"><Library size={16} /> Library</TabsTrigger>
-                        <TabsTrigger value="search" className="flex items-center gap-2"><Search size={16} /> Search</TabsTrigger>
-                        <TabsTrigger value="clusters" className="flex items-center gap-2"><Layers size={16} /> Clusters</TabsTrigger>
-                        <TabsTrigger value="recommendations" className="flex items-center gap-2"><Sparkles size={16} /> For You</TabsTrigger>
-                    </TabsList>
+        <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-8">
+            <div className="max-w-[95vw] mx-auto space-y-8">
+                <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-blue-600 rounded-lg">
+                            <Layers className="h-6 w-6 text-white" />
+                        </div>
+                        <h1 className="text-3xl font-bold text-gray-900 dark:text-white tracking-tight">Infrared Zenith</h1>
+                    </div>
+                    <div className="flex items-center gap-4">
+                        <UserButton afterSignOutUrl="/" />
+                    </div>
                 </div>
 
-                <TabsContent value="search">
-                    <div className="mb-8 flex gap-4">
-                        <div className="relative flex-1">
-                            <Search className="absolute left-3 top-3 text-gray-400" size={20} />
-                            <Input
-                                placeholder="Search papers (e.g., 'LLM agents', 'quantum computing')..."
-                                className="pl-10 py-6 text-lg"
-                                value={query}
-                                onChange={(e) => setQuery(e.target.value)}
-                                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                            />
-                        </div>
-                        <div className="w-48">
-                            <select
-                                className="w-full h-full px-3 py-2 bg-white dark:bg-slate-950 border border-gray-200 dark:border-slate-800 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-slate-950 dark:focus:ring-slate-300"
-                                value={sortBy}
-                                onChange={(e) => handleSortChange(e.target.value)}
-                            >
-                                <option value="relevance">Sort by Relevance</option>
-                                <option value="submittedDate">Sort by Date</option>
-                            </select>
-                        </div>
-                        <Button size="lg" onClick={handleSearch} disabled={loading}>
-                            {loading ? <Loader2 className="animate-spin" /> : 'Search'}
-                        </Button>
+                <Tabs defaultValue="library" className="w-full">
+                    <div className="flex justify-center mb-8">
+                        <TabsList>
+                            <TabsTrigger value="library" className="flex items-center gap-2"><Library size={16} /> Library</TabsTrigger>
+                            <TabsTrigger value="search" className="flex items-center gap-2"><Search size={16} /> Search</TabsTrigger>
+                            <TabsTrigger value="clusters" className="flex items-center gap-2"><Layers size={16} /> Clusters</TabsTrigger>
+                            <TabsTrigger value="recommendations" className="flex items-center gap-2"><Sparkles size={16} /> For You</TabsTrigger>
+                        </TabsList>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        {papers.map((paper) => (
-                            <PaperCard
-                                key={paper.id}
-                                paper={paper}
-                                paperId={paper.id}
-                                onClick={() => router.push(`/paper/${encodeURIComponent(paper.id)}`)}
-                                onSave={(e) => {
-                                    e.stopPropagation();
-                                    handleSave(paper);
-                                }}
-                                isSaved={savedPapers.some(p => p.id === paper.id)}
-                                isSaving={savingId === paper.id}
-                            />
-                        ))}
-                    </div>
-
-                    {papers.length > 0 && hasMore && (
-                        <div className="mt-8 text-center">
-                            <Button
-                                variant="outline"
-                                onClick={handleLoadMore}
-                                disabled={loadingMore}
-                            >
-                                {loadingMore ? <Loader2 className="animate-spin mr-2" size={16} /> : null}
-                                Load More Results
+                    <TabsContent value="search">
+                        <div className="mb-8 flex gap-4">
+                            <div className="relative flex-1">
+                                <Search className="absolute left-3 top-3 text-gray-400" size={20} />
+                                <Input
+                                    placeholder="Search papers (e.g., 'LLM agents', 'quantum computing')..."
+                                    className="pl-10 py-6 text-lg"
+                                    value={query}
+                                    onChange={(e) => setQuery(e.target.value)}
+                                    onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                                />
+                            </div>
+                            <div className="w-48">
+                                <select
+                                    className="w-full h-full px-3 py-2 bg-white dark:bg-slate-950 border border-gray-200 dark:border-slate-800 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-slate-950 dark:focus:ring-slate-300"
+                                    value={sortBy}
+                                    onChange={(e) => handleSortChange(e.target.value)}
+                                >
+                                    <option value="relevance">Sort by Relevance</option>
+                                    <option value="submittedDate">Sort by Date</option>
+                                </select>
+                            </div>
+                            <Button size="lg" onClick={handleSearch} disabled={loading}>
+                                {loading ? <Loader2 className="animate-spin" /> : 'Search'}
                             </Button>
                         </div>
-                    )}
 
-                    {papers.length === 0 && !loading && (
-                        <div className="text-center text-gray-500 mt-12">
-                            <p>No papers found. Try searching for a topic like "LLM agents" or "quantum computing".</p>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            {papers.map((paper) => (
+                                <PaperCard
+                                    key={paper.id}
+                                    paper={paper}
+                                    paperId={paper.id}
+                                    onClick={() => router.push(`/paper/${encodeURIComponent(paper.id)}`)}
+                                    onSave={(e) => {
+                                        e.stopPropagation();
+                                        handleSave(paper);
+                                    }}
+                                    isSaved={savedPapers.some(p => p.id === paper.id)}
+                                    isSaving={savingId === paper.id}
+                                />
+                            ))}
                         </div>
-                    )}
-                </TabsContent>
 
-                <TabsContent value="library">
-                    {savedPapers.length > 0 ? (
-                        <LibraryTable
-                            papers={savedPapers}
-                            onRemove={handleRemove}
-                            onRegenerateSummary={handleRegenerateSummary}
-                            regeneratingId={regeneratingId}
-                            onAddTopic={handleAddTopic}
-                            onRemoveTopic={handleRemoveTopic}
-                            onRegenerateAll={handleRegenerateAll}
-                            onRegenerateEmpty={handleRegenerateEmpty}
-                            bulkRegenerating={bulkRegenerating}
-                        />
-                    ) : (
-                        <div className="text-center text-gray-500 mt-12">
-                            <Library className="mx-auto h-12 w-12 text-gray-300 mb-4" />
-                            <p>Your library is empty. Search for papers and save them here.</p>
-                        </div>
-                    )}
-                </TabsContent>
+                        {papers.length > 0 && hasMore && (
+                            <div className="mt-8 text-center">
+                                <Button
+                                    variant="outline"
+                                    onClick={handleLoadMore}
+                                    disabled={loadingMore}
+                                >
+                                    {loadingMore ? <Loader2 className="animate-spin mr-2" size={16} /> : null}
+                                    Load More Results
+                                </Button>
+                            </div>
+                        )}
 
-                <TabsContent value="clusters">
-                    {savedPapers.length > 0 ? (
-                        <div className="space-y-8">
-                            {(() => {
-                                // Group papers by topics
-                                const topicGroups = new Map<string, SavedPaper[]>();
+                        {papers.length === 0 && !loading && (
+                            <div className="text-center text-gray-500 mt-12">
+                                <p>No papers found. Try searching for a topic like "LLM agents" or "quantum computing".</p>
+                            </div>
+                        )}
+                    </TabsContent>
 
-                                savedPapers.forEach(paper => {
-                                    if (paper.topics && paper.topics.length > 0) {
-                                        paper.topics.forEach(topic => {
-                                            if (!topicGroups.has(topic.name)) {
-                                                topicGroups.set(topic.name, []);
-                                            }
-                                            topicGroups.get(topic.name)!.push(paper);
-                                        });
-                                    } else {
-                                        // Papers without topics go to "Uncategorized"
-                                        if (!topicGroups.has('Uncategorized')) {
-                                            topicGroups.set('Uncategorized', []);
-                                        }
-                                        topicGroups.get('Uncategorized')!.push(paper);
-                                    }
-                                });
-
-                                // Sort topics alphabetically, but put "Uncategorized" last
-                                const sortedTopics = Array.from(topicGroups.keys()).sort((a, b) => {
-                                    if (a === 'Uncategorized') return 1;
-                                    if (b === 'Uncategorized') return -1;
-                                    return a.localeCompare(b);
-                                });
-
-                                return sortedTopics.map(topicName => {
-                                    const papers = topicGroups.get(topicName)!;
-                                    return (
-                                        <div key={topicName} className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
-                                            <div className="flex items-center gap-3 mb-4">
-                                                <Tag className="text-blue-500" size={20} />
-                                                <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
-                                                    {topicName}
-                                                </h3>
-                                                <Badge variant="secondary" className="ml-2">
-                                                    {papers.length} {papers.length === 1 ? 'paper' : 'papers'}
-                                                </Badge>
-                                            </div>
-                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                                {papers.map(paper => (
-                                                    <PaperCard
-                                                        key={`${topicName}-${paper.id}`}
-                                                        paper={paper}
-                                                        paperId={paper.id}
-                                                        onClick={() => router.push(`/paper/${paper.id}`)}
-                                                        onSave={() => handleSave(paper)}
-                                                        isSaved={savedPapers.some(p => p.id === paper.id)}
-                                                        isSaving={savingId === paper.id}
-                                                    />
-                                                ))}
-                                            </div>
-                                        </div>
-                                    );
-                                });
-                            })()}
-                        </div>
-                    ) : (
-                        <div className="text-center text-gray-500 mt-12">
-                            <Layers className="mx-auto h-12 w-12 text-gray-300 mb-4" />
-                            <p>No papers in your library yet. Add papers to see them grouped by topics.</p>
-                        </div>
-                    )}
-                </TabsContent>
-
-                <TabsContent value="recommendations">
-                    <div className="text-center py-12">
-                        <Sparkles className="mx-auto h-12 w-12 text-yellow-500 mb-4" />
-                        <h3 className="text-xl font-semibold mb-2">Daily Recommendations</h3>
-                        <p className="text-gray-500 max-w-md mx-auto mb-8">
-                            Latest papers from ArXiv (cs.AI)
-                        </p>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-left">
-                            {recommendations.map((paper) => <PaperCard
-                                key={paper.id}
-                                paper={paper}
-                                paperId={paper.id}
-                                onClick={() => router.push(`/paper/${encodeURIComponent(paper.id)}`)}
-                                onSave={(e) => {
-                                    e.stopPropagation();
-                                    handleSave(paper);
-                                }}
-                                isSaved={savedPapers.some(p => p.id === paper.id)}
-                                isSaving={savingId === paper.id}
+                    <TabsContent value="library">
+                        {savedPapers.length > 0 ? (
+                            <LibraryTable
+                                papers={savedPapers}
+                                onRemove={handleRemove}
+                                onRegenerateSummary={handleRegenerateSummary}
+                                regeneratingId={regeneratingId}
+                                onAddTopic={handleAddTopic}
+                                onRemoveTopic={handleRemoveTopic}
+                                onRegenerateAll={handleRegenerateAll}
+                                onRegenerateEmpty={handleRegenerateEmpty}
+                                bulkRegenerating={bulkRegenerating}
+                                onToggleRead={handleToggleRead}
+                                onToggleStar={handleToggleStar}
                             />
-                            )}
-                            {recommendations.length === 0 && (
-                                <div className="col-span-2 text-center">Loading recommendations...</div>
-                            )}
+                        ) : (
+                            <div className="text-center text-gray-500 mt-12">
+                                <Library className="mx-auto h-12 w-12 text-gray-300 mb-4" />
+                                <p>Your library is empty. Search for papers and save them here.</p>
+                            </div>
+                        )}
+                    </TabsContent>
+
+                    <TabsContent value="clusters">
+                        {savedPapers.length > 0 ? (
+                            <div className="space-y-8">
+                                {(() => {
+                                    // Group papers by topics
+                                    const topicGroups = new Map<string, SavedPaper[]>();
+
+                                    savedPapers.forEach(paper => {
+                                        if (paper.topics && paper.topics.length > 0) {
+                                            paper.topics.forEach(topic => {
+                                                if (!topicGroups.has(topic.name)) {
+                                                    topicGroups.set(topic.name, []);
+                                                }
+                                                topicGroups.get(topic.name)!.push(paper);
+                                            });
+                                        } else {
+                                            // Papers without topics go to "Uncategorized"
+                                            if (!topicGroups.has('Uncategorized')) {
+                                                topicGroups.set('Uncategorized', []);
+                                            }
+                                            topicGroups.get('Uncategorized')!.push(paper);
+                                        }
+                                    });
+
+                                    // Sort topics alphabetically, but put "Uncategorized" last
+                                    const sortedTopics = Array.from(topicGroups.keys()).sort((a, b) => {
+                                        if (a === 'Uncategorized') return 1;
+                                        if (b === 'Uncategorized') return -1;
+                                        return a.localeCompare(b);
+                                    });
+
+                                    return sortedTopics.map(topicName => {
+                                        const papers = topicGroups.get(topicName)!;
+                                        return (
+                                            <div key={topicName} className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
+                                                <div className="flex items-center gap-3 mb-4">
+                                                    <Tag className="text-blue-500" size={20} />
+                                                    <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
+                                                        {topicName}
+                                                    </h3>
+                                                    <Badge variant="secondary" className="ml-2">
+                                                        {papers.length} {papers.length === 1 ? 'paper' : 'papers'}
+                                                    </Badge>
+                                                </div>
+                                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                                    {papers.map(paper => (
+                                                        <PaperCard
+                                                            key={`${topicName}-${paper.id}`}
+                                                            paper={paper}
+                                                            paperId={paper.id}
+                                                            onClick={() => router.push(`/paper/${paper.id}`)}
+                                                            onSave={() => handleSave(paper)}
+                                                            isSaved={savedPapers.some(p => p.id === paper.id)}
+                                                            isSaving={savingId === paper.id}
+                                                        />
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        );
+                                    });
+                                })()}
+                            </div>
+                        ) : (
+                            <div className="text-center text-gray-500 mt-12">
+                                <Layers className="mx-auto h-12 w-12 text-gray-300 mb-4" />
+                                <p>No papers in your library yet. Add papers to see them grouped by topics.</p>
+                            </div>
+                        )}
+                    </TabsContent>
+
+                    <TabsContent value="recommendations">
+                        <div className="text-center py-12">
+                            <Sparkles className="mx-auto h-12 w-12 text-yellow-500 mb-4" />
+                            <h3 className="text-xl font-semibold mb-2">Daily Recommendations</h3>
+                            <p className="text-gray-500 max-w-md mx-auto mb-8">
+                                Latest papers from ArXiv (cs.AI)
+                            </p>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-left">
+                                {recommendations.map((paper) => <PaperCard
+                                    key={paper.id}
+                                    paper={paper}
+                                    paperId={paper.id}
+                                    onClick={() => router.push(`/paper/${encodeURIComponent(paper.id)}`)}
+                                    onSave={(e) => {
+                                        e.stopPropagation();
+                                        handleSave(paper);
+                                    }}
+                                    isSaved={savedPapers.some(p => p.id === paper.id)}
+                                    isSaving={savingId === paper.id}
+                                />
+                                )}
+                                {recommendations.length === 0 && (
+                                    <div className="col-span-2 text-center">Loading recommendations...</div>
+                                )}
+                            </div>
                         </div>
-                    </div>
-                </TabsContent>
-            </Tabs>
+                    </TabsContent>
+                </Tabs>
+            </div>
         </div>
     );
 }
