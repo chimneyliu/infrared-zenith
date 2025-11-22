@@ -1,7 +1,7 @@
 'use server';
 
 import { searchArxiv, ArxivPaper } from '@/lib/arxiv';
-import { summarizeText, analyzePdfBuffer } from '@/lib/analyzer';
+import { analyzePdfBuffer } from '@/lib/analyzer';
 import { PrismaClient } from '@prisma/client';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import axios from 'axios';
@@ -55,10 +55,7 @@ export async function getLatestPapersAction(category: string = 'cs.AI'): Promise
     return await searchArxiv(`cat:${category}`, 10);
 }
 
-export async function analyzePaperAction(text: string): Promise<string> {
-    if (!text.trim()) return "No text to analyze.";
-    return await summarizeText(text);
-}
+
 
 export async function analyzePaperFromUrlAction(url: string): Promise<string> {
     try {
@@ -300,8 +297,27 @@ export async function getSavedPapersAction() {
 export async function suggestTopicsAction(text: string): Promise<string[]> {
     if (!process.env.GEMINI_API_KEY) return [];
     try {
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-        const prompt = `Suggest exactly 3 short, relevant topics or tags for the following research paper text. Return ONLY a JSON array of strings, e.g., ["NLP", "Transformers", "LLM"]. Text: ${text.substring(0, 5000)}`;
+        const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
+        const allowedTopics = [
+            "Distributed Machine Learning",
+            "Model Performance Optimization",
+            "Personalized Advertising",
+            "Recommendation System",
+            "Generative Recommendation",
+            "Reinforcement Learning",
+            "Agent",
+            "Large Language Models",
+            "Model Architecture"
+        ];
+        const prompt = `Analyze the following research paper text and select exactly 3 most relevant topics from the provided list.
+        
+        Allowed Topics:
+        ${allowedTopics.map(t => `- ${t}`).join('\n')}
+        
+        Return ONLY a JSON array of strings containing the selected topics, e.g., ["Agent", "Large Language Models", "Reinforcement Learning"].
+        If no topics strongly match, choose the closest ones from the list.
+        
+        Text: ${text.substring(0, 5000)}`;
 
         const result = await model.generateContent(prompt);
         const response = await result.response;

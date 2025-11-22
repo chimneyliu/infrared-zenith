@@ -25,10 +25,25 @@ export async function analyzePdfBuffer(buffer: Buffer): Promise<{ summary: strin
         // Convert Buffer to base64 string
         const base64Data = buffer.toString('base64');
 
+        const allowedTopics = [
+            "Distributed Machine Learning",
+            "Model Performance Optimization",
+            "Personalized Advertising",
+            "Recommendation System",
+            "Generative Recommendation",
+            "Reinforcement Learning",
+            "Agent",
+            "Large Language Models",
+            "Model Architecture"
+        ];
+
         const prompt = `Analyze the following research paper and provide:
         1. A concise summary focusing on main contributions, methodology, and key results.
         2. The name of the primary company or research institution associated with the authors.
-        3. A list of exactly 3 key topic labels or tags relevant to the paper.
+        3. A list of exactly 3 key topic labels or tags relevant to the paper. 
+
+        Allowed Topics:
+        ${allowedTopics.map(t => `- ${t}`).join('\n')}
 
         Return ONLY a JSON object with the following format:
         {
@@ -70,37 +85,4 @@ export async function analyzePdfBuffer(buffer: Buffer): Promise<{ summary: strin
     }
 }
 
-/**
- * Summarizes the given text using Google Gemini.
- */
-export async function summarizeText(text: string): Promise<string> {
-    if (!process.env.GEMINI_API_KEY) {
-        return "Error: GEMINI_API_KEY not found in environment variables.";
-    }
 
-    try {
-        const model = getGenAI().getGenerativeModel({ model: "gemini-flash-latest" });
-        // Truncate text to avoid token limits (approx 30k chars is safe for Flash)
-        const truncatedText = text.substring(0, 30000);
-
-        const prompt = `Please provide a concise summary of the following research paper text. 
-        Focus on the main contributions, methodology, and key results. Also extract which
-        company or research institution is the author of this paper.
-        
-        Text: ${truncatedText}...`;
-
-        const result = await model.generateContent(prompt);
-        const response = await result.response;
-        return response.text();
-    } catch (error) {
-        console.error('Error summarizing text with Gemini:', error);
-        return "Failed to generate summary. Please try again later.";
-    }
-}
-
-/**
- * Placeholder for reference extraction.
- */
-export async function extractReferences(text: string): Promise<string[]> {
-    return ["Reference extraction pending implementation"];
-}

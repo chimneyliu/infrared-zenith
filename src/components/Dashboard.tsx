@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { PaperCard } from '@/components/PaperCard';
 import { LibraryTable } from '@/components/LibraryTable';
 import { searchPapersAction, getLatestPapersAction, savePaperAction, getSavedPapersAction, suggestTopicsAction, addTopicToPaperAction, deletePaperAction, regenerateSummaryAction, removeTopicFromPaperAction, regenerateAllSummariesAction, regenerateEmptySummariesAction, toggleReadStatusAction, toggleStarStatusAction } from '@/app/actions';
-import { Loader2, Search, Layers, Sparkles, Library, Plus, Tag, Trash2 } from 'lucide-react';
+import { Loader2, Search, Layers, Sparkles, Library, Tag } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ArxivPaper } from '@/lib/arxiv';
 import { Badge } from '@/components/ui/badge';

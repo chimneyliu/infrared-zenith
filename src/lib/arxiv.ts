@@ -61,36 +61,7 @@ export async function searchArxiv(
     }
 }
 
-export async function getPaperById(id: string): Promise<ArxivPaper | null> {
-    // ArXiv IDs can be like "2101.12345" or "http://arxiv.org/abs/2101.12345"
-    // The API expects "id_list" for specific IDs
-    const cleanId = getCleanId(id);
 
-    try {
-        const response = await fetchWithRetry(ARXIV_API_URL, {
-            id_list: cleanId,
-        });
-
-        const result = await parseStringPromise(response.data);
-        const entries = result.feed.entry || [];
-
-        if (entries.length === 0) return null;
-
-        const entry = entries[0];
-        return {
-            id: entry.id[0],
-            title: entry.title[0].trim().replace(/\s+/g, ' '),
-            summary: entry.summary[0].trim().replace(/\s+/g, ' '),
-            authors: entry.author.map((a: any) => a.name[0]),
-            published: entry.published[0],
-            link: entry.id[0],
-            pdfLink: entry.link.find((l: any) => l.$.title === 'pdf')?.$.href,
-        };
-    } catch (error) {
-        console.error('Error fetching paper by ID:', error);
-        return null;
-    }
-}
 
 function getCleanId(id: string): string {
     return id.replace(/^http:\/\/arxiv\.org\/abs\//, '').replace(/^https:\/\/arxiv\.org\/abs\//, '');
